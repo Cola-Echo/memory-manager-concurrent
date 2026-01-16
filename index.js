@@ -3640,6 +3640,13 @@
           y: clientY - rect.top,
         };
 
+        // 先将当前位置固定为内联样式（防止拖拽时位置跳变）
+        // 使用 setProperty 设置 !important，以覆盖移动端CSS中的 !important 规则
+        this.container.style.setProperty('left', `${rect.left}px`, 'important');
+        this.container.style.setProperty('top', `${rect.top}px`, 'important');
+        this.container.style.setProperty('right', 'auto', 'important');
+        this.container.style.setProperty('transform', 'none', 'important');
+
         // 添加拖动样式
         this.container.classList.add("mm-dragging");
 
@@ -3676,10 +3683,10 @@
         newX = Math.max(0, Math.min(newX, maxX));
         newY = Math.max(0, Math.min(newY, maxY));
 
-        // 应用位置（使用 left/top 而不是 transform）
-        this.container.style.left = `${newX}px`;
-        this.container.style.top = `${newY}px`;
-        this.container.style.transform = "none";
+        // 应用位置（使用 setProperty 设置 !important，覆盖移动端CSS）
+        this.container.style.setProperty('left', `${newX}px`, 'important');
+        this.container.style.setProperty('top', `${newY}px`, 'important');
+        this.container.style.setProperty('transform', 'none', 'important');
 
         this.position = { x: newX, y: newY };
       };
@@ -3694,9 +3701,15 @@
         document.removeEventListener("touchmove", onDragMove);
         document.removeEventListener("touchend", onDragEnd);
 
-        // 保存位置
-        if (this.position) {
-          this.savePosition();
+        // 保存位置（如果有移动）
+        if (this.position && dragMoved) {
+          // 移动端：添加用户定位类让拖拽位置生效，但不保存到localStorage
+          // 桌面端：保存位置并添加用户定位类
+          if (window.innerWidth >= 768) {
+            this.savePosition();
+          }
+          // 移动端和桌面端都添加用户定位类，让拖拽后的位置生效
+          this.container.classList.add("mm-user-positioned");
         }
 
         // 判断是否为点击（短时间内没有移动）
@@ -3722,8 +3735,11 @@
       }, { passive: false });
     }
 
-    // 保存位置到 localStorage
+    // 保存位置到 localStorage（仅桌面端）
     savePosition() {
+      // 移动端不保存位置
+      if (window.innerWidth < 768) return;
+
       if (this.position) {
         localStorage.setItem(
           "mm_progress_panel_position",
@@ -3748,6 +3764,8 @@
             this.container.style.left = `${pos.x}px`;
             this.container.style.top = `${pos.y}px`;
             this.container.style.transform = "none";
+            // 添加用户定位类，防止移动端 CSS 覆盖
+            this.container.classList.add("mm-user-positioned");
           }
         }
       } catch (e) {
@@ -3761,6 +3779,7 @@
       this.container.style.left = "50%";
       this.container.style.top = "80px";
       this.container.style.transform = "translateX(-50%)";
+      this.container.classList.remove("mm-user-positioned");
       localStorage.removeItem("mm_progress_panel_position");
     }
 
@@ -3777,13 +3796,53 @@
         this.hideTimeout = null;
       }
 
-      // 重置面板位置，让CSS初始定位生效
+      // 检查是否有保存的位置
       if (this.container) {
-        this.container.style.left = "";
-        this.container.style.top = "";
-        this.container.style.right = "";
-        this.container.style.bottom = "";
-        this.container.style.transform = "";
+        // 移动端（宽度小于768px）不使用保存的位置，始终使用CSS默认位置
+        const isMobile = window.innerWidth < 768;
+
+        if (isMobile) {
+          // 移动端：清除所有内联样式，使用CSS默认定位
+          this.container.style.left = "";
+          this.container.style.top = "";
+          this.container.style.right = "";
+          this.container.style.bottom = "";
+          this.container.style.transform = "";
+          this.container.classList.remove("mm-user-positioned");
+          this.position = null;
+        } else {
+          // 桌面端：尝试使用保存的位置
+          const saved = localStorage.getItem("mm_progress_panel_position");
+          if (saved) {
+            try {
+              const pos = JSON.parse(saved);
+              requestAnimationFrame(() => {
+                const rect = this.container.getBoundingClientRect();
+                const maxX = window.innerWidth - Math.min(rect.width, 320);
+                const maxY = window.innerHeight - Math.min(rect.height, 100);
+
+                if (pos.x >= 0 && pos.x <= maxX && pos.y >= 0 && pos.y <= maxY) {
+                  this.position = pos;
+                  this.container.style.left = `${pos.x}px`;
+                  this.container.style.top = `${pos.y}px`;
+                  this.container.style.transform = "none";
+                  this.container.classList.add("mm-user-positioned");
+                } else {
+                  this.resetPosition();
+                }
+              });
+            } catch (e) {
+              // 解析失败
+            }
+          } else {
+            this.container.style.left = "";
+            this.container.style.top = "";
+            this.container.style.right = "";
+            this.container.style.bottom = "";
+            this.container.style.transform = "";
+            this.container.classList.remove("mm-user-positioned");
+          }
+        }
       }
 
       this.isVisible = true;
@@ -6440,6 +6499,10 @@
   async function callSingleSummaryBookAI(panel, book, userMessage, context) {
     const bookName = book.name;
 
+    // 创建 AbortController 用于终止任务
+    const taskId = `search_${bookName}`;
+    const abortController = new AbortController();
+
     try {
       panel.setBookStatus(bookName, "loading", "调用AI中...");
       panel.addBookAIMessage(bookName, "正在调用历史事件回忆AI...");
@@ -6467,20 +6530,21 @@
       const finalSystemPrompt = getJailbreakPrefix() + "\n\n" + baseSystemPrompt;
       const finalUserMessage = buildUserPrompt(userMessage);
 
-      // 添加到进度追踪
-      const taskId = `search_${bookName}`;
+      // 添加到进度追踪，并注册 AbortController
       if (progressTracker) {
         progressTracker.addTask(taskId, `搜索:${bookName}`, "search");
+        progressTracker.setTaskAbortController(taskId, abortController);
       }
 
       try {
-        // 调用AI
+        // 调用AI（传递 signal 以支持终止）
         const response = await APIAdapter.callWithRetry(
           { ...aiConfig, category: bookName, source: bookName, taskId: taskId },
           finalSystemPrompt,
           finalUserMessage,
           taskId,
-          3
+          3,
+          abortController.signal
         );
 
         // 完成进度
@@ -6506,12 +6570,19 @@
         }
       } catch (error) {
         // 失败时也标记进度完成
+        const isAborted = error.name === "AbortError";
         if (progressTracker) {
-          progressTracker.completeTask(taskId, false, error.message);
+          progressTracker.completeTask(taskId, false, isAborted ? "已终止" : error.message);
         }
-        Logger.error(`[交互式搜索] 总结世界书 "${bookName}" AI调用失败:`, error.message);
-        panel.setBookStatus(bookName, "error", "失败");
-        panel.addBookSystemMessage(bookName, `AI调用失败: ${error.message}`);
+        if (isAborted) {
+          Logger.warn(`[交互式搜索] 总结世界书 "${bookName}" 已被终止`);
+          panel.setBookStatus(bookName, "error", "已终止");
+          panel.addBookSystemMessage(bookName, "搜索已被用户终止");
+        } else {
+          Logger.error(`[交互式搜索] 总结世界书 "${bookName}" AI调用失败:`, error.message);
+          panel.setBookStatus(bookName, "error", "失败");
+          panel.addBookSystemMessage(bookName, `AI调用失败: ${error.message}`);
+        }
       }
     } catch (error) {
       Logger.error(`[交互式搜索] 总结世界书 "${bookName}" 初始化失败:`, error.message);

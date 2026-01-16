@@ -3124,11 +3124,13 @@
    ============================================================================ */
 
 @media (max-width: 768px) {
-  .mm-message-progress-panel {
+  /* 进度面板移动端基础定位（参考剧情优化面板，固定在左上角） */
+  .mm-message-progress-panel:not(.mm-dragging):not(.mm-user-positioned) {
     width: calc(100vw - 32px);
     max-width: 320px;
     left: 16px;
     top: 60px;
+    right: auto;
     transform: none;
   }
 
@@ -3159,10 +3161,13 @@
 }
 
 @media (max-width: 480px) {
-  .mm-message-progress-panel {
+  /* 进度面板手机端基础定位（参考剧情优化面板，固定在左上角） */
+  .mm-message-progress-panel:not(.mm-dragging):not(.mm-user-positioned) {
     width: calc(100vw - 24px);
-    left: 12px;
-    top: 50px;
+    left: 8px;
+    top: 60px;
+    right: auto;
+    transform: none;
   }
 
   .mm-msg-panel-header {
@@ -6445,12 +6450,21 @@
     transform: none;
   }
 
-  /* 进度面板 - 移动端安全定位 */
-  .mm-message-progress-panel {
-    top: 10px !important;
-    left: 50% !important;
-    transform: translateX(-50%) !important;
+  /* 进度面板 - 移动端安全定位（参考剧情优化面板，固定在左上角） */
+  .mm-message-progress-panel:not(.mm-dragging):not(.mm-user-positioned) {
+    top: 60px !important;
+    left: 16px !important;
+    right: auto !important;
+    transform: none !important;
     max-height: 60vh !important;
+  }
+
+  /* 用户手动拖动后，允许自定义位置 */
+  .mm-message-progress-panel.mm-user-positioned {
+    top: unset !important;
+    left: unset !important;
+    right: unset !important;
+    transform: none !important;
   }
 }
 
@@ -6558,14 +6572,23 @@
     transform: none;
   }
 
-  /* 进度面板 - 手机端安全定位 */
-  .mm-message-progress-panel {
-    top: 8px !important;
-    left: 50% !important;
-    transform: translateX(-50%) !important;
+  /* 进度面板 - 手机端安全定位（参考剧情优化面板，固定在左上角） */
+  .mm-message-progress-panel:not(.mm-dragging):not(.mm-user-positioned) {
+    top: 60px !important;
+    left: 8px !important;
+    right: auto !important;
+    transform: none !important;
     max-height: 55vh !important;
     width: calc(100vw - 24px) !important;
     max-width: 300px !important;
+  }
+
+  /* 用户手动拖动后，允许自定义位置 */
+  .mm-message-progress-panel.mm-user-positioned {
+    top: unset !important;
+    left: unset !important;
+    right: unset !important;
+    transform: none !important;
   }
 
   /* 汇总检查弹窗（动态创建） */
