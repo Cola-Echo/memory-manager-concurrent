@@ -8387,16 +8387,19 @@
   function addExtractTag(tagName) {
     if (!tagName || !tagName.trim()) return;
 
-    const cleanTag = tagName.trim().replace(/^<|>$/g, "");
-    if (!cleanTag) return;
+    // 支持逗号分割多个标签（中英文逗号）
+    const tags = tagName.split(/[,，]/).map(t => t.trim().replace(/^<|>$/g, "")).filter(t => t);
+    if (tags.length === 0) return;
 
     const config = getTagFilterConfigFromUI();
 
-    if (config.extractTags.includes(cleanTag)) {
-      return;
+    for (const cleanTag of tags) {
+      if (config.extractTags.includes(cleanTag)) {
+        continue;
+      }
+      config.extractTags.push(cleanTag);
     }
 
-    config.extractTags.push(cleanTag);
     renderExtractTagList(config.extractTags);
     updateGlobalSettings({ contextTagFilter: config });
   }
@@ -8407,16 +8410,19 @@
   function addExcludeTag(tagName) {
     if (!tagName || !tagName.trim()) return;
 
-    const cleanTag = tagName.trim().replace(/^<|>$/g, "");
-    if (!cleanTag) return;
+    // 支持逗号分割多个标签（中英文逗号）
+    const tags = tagName.split(/[,，]/).map(t => t.trim().replace(/^<|>$/g, "")).filter(t => t);
+    if (tags.length === 0) return;
 
     const config = getTagFilterConfigFromUI();
 
-    if (config.excludeTags.includes(cleanTag)) {
-      return;
+    for (const cleanTag of tags) {
+      if (config.excludeTags.includes(cleanTag)) {
+        continue;
+      }
+      config.excludeTags.push(cleanTag);
     }
 
-    config.excludeTags.push(cleanTag);
     renderExcludeTagList(config.excludeTags);
     updateGlobalSettings({ contextTagFilter: config });
   }
